@@ -2618,6 +2618,29 @@ public class SleuthkitCase {
 		}
 		return ret;
 	}
+	
+	/**
+	 * Gets the root-level data source object id
+	 * (such as Image or VirtualDirectory representing filesets) for the file
+	 * @param file file to get the root-level object id for
+	 * @return the root content object id in the hierarchy, or -1 if not found (such as when invalid file object passed in)
+	 * @throws TskCoreException thrown if check failed due to a critical tsk error
+	 */
+	public long getFileDataSource(AbstractFile file) throws TskCoreException {
+		
+		final Image image = file.getImage();
+		if (image != null) {
+			//case for image data source
+			return image.getId();
+		}
+		else {
+			//otherwise, get the root non-image data source id
+			//note, we are currently using fs_id internally to store data source id for such files
+		
+			return getFileSystemByFileId(file.getId());
+		}
+
+	}
 
 	/**
 	 * Checks if the file is a (sub)child of the data source (parentless Content object
@@ -3556,7 +3579,7 @@ public class SleuthkitCase {
 	 * 
 	 * @param sqlWhereClause a SQL where clause appropriate for the desired
 	 * files (do not begin the WHERE clause with the word WHERE!)
-	 * @return a list of FsContent each of which satisfy the given WHERE clause
+	 * @return a list of AbstractFile each of which satisfy the given WHERE clause
 	 * @throws TskCoreException
 	 */
 	public List<AbstractFile> findAllFilesWhere(String sqlWhereClause) throws TskCoreException {
@@ -3568,24 +3591,65 @@ public class SleuthkitCase {
 			rs = statement.executeQuery("SELECT * FROM tsk_files WHERE " + sqlWhereClause);
 			return resultSetToAbstractFiles(rs);
 		} catch (SQLException e) {
-			throw new TskCoreException("SQLException thrown when calling 'SleuthkitCase.findAllFilesWhere().", e);
+			throw new TskCoreException("SQLException thrown when calling 'SleuthkitCase.findAllFilesWhere(): " + sqlWhereClause, e);
 		} finally {
 			if (rs != null) {
 				try {
 					rs.close();
 				} catch (SQLException ex) {
-					logger.log(Level.SEVERE, "Error closing result set after executing  findFilesWhere", ex);
+					logger.log(Level.SEVERE, "Error closing result set after executing  findAllFilesWhere", ex);
 				}
 			}
 			if (statement != null) {
 				try {
 					statement.close();
 				} catch (SQLException ex) {
-					logger.log(Level.SEVERE, "Error closing statement after executing  findFilesWhere", ex);
+					logger.log(Level.SEVERE, "Error closing statement after executing  findAllFilesWhere", ex);
 				}
 			}
 			dbReadUnlock();
 		}
+	}
+
+	/**
+	 * Find and return list of all (abstract) ids of files matching the specific Where clause
+	 * 
+	 * @param sqlWhereClause a SQL where clause appropriate for the desired
+	 * files (do not begin the WHERE clause with the word WHERE!)
+	 * @return a list of file ids each of which satisfy the given WHERE clause
+	 * @throws TskCoreException
+	 */
+	public List<Long> findAllFileIdsWhere(String sqlWhereClause) throws TskCoreException {
+		Statement statement = null;
+		ResultSet rs = null;
+		List<Long> ret = new ArrayList<Long>();
+		dbReadLock();
+		try {
+			statement = con.createStatement();
+			rs = statement.executeQuery("SELECT obj_id FROM tsk_files WHERE " + sqlWhereClause);
+			while(rs.next()) {
+				ret.add(rs.getLong(1));
+			}
+		} catch (SQLException e) {
+			throw new TskCoreException("SQLException thrown when calling 'SleuthkitCase.findAllFileIdsWhere(): " + sqlWhereClause, e);
+		} finally {
+			if (rs != null) {
+				try {
+					rs.close();
+				} catch (SQLException ex) {
+					logger.log(Level.SEVERE, "Error closing result set after executing  findAllFileIdsWhere", ex);
+				}
+			}
+			if (statement != null) {
+				try {
+					statement.close();
+				} catch (SQLException ex) {
+					logger.log(Level.SEVERE, "Error closing statement after executing  findAllFileIdsWhere", ex);
+				}
+			}
+			dbReadUnlock();
+		}
+		return ret;
 	}
 
 
@@ -3624,6 +3688,50 @@ public class SleuthkitCase {
 			}
 			dbReadUnlock();
 		}
+	}
+	
+	/**
+	 * Find and return list of file IDs matching the specific Where clause.
+	 * Use this like findFilesWhere() and where file objects are not required upfront
+	 * and so heap usage can be reduced.
+	 * 
+	 * @param sqlWhereClause a SQL where clause appropriate for the desired
+	 * files (do not begin the WHERE clause with the word WHERE!)
+	 * @return a list of file ids each of which satisfy the given WHERE clause
+	 * @throws TskCoreException
+	 */
+	public List<Long> findFileIdsWhere(String sqlWhereClause) throws TskCoreException {
+		Statement statement = null;
+		ResultSet rs = null;
+		List<Long> ret = new ArrayList<Long>();
+		dbReadLock();
+		try {
+			statement = con.createStatement();
+			rs = statement.executeQuery("SELECT obj_id FROM tsk_files WHERE " + sqlWhereClause);
+			while (rs.next()) {
+				ret.add(rs.getLong(1));
+			}
+			
+		} catch (SQLException e) {
+			throw new TskCoreException("SQLException thrown when calling 'SleuthkitCase.findFileIdsWhere() " + sqlWhereClause, e);
+		} finally {
+			if (rs != null) {
+				try {
+					rs.close();
+				} catch (SQLException ex) {
+					logger.log(Level.SEVERE, "Error closing result set after executing  findFileIdsWhere", ex);
+				}
+			}
+			if (statement != null) {
+				try {
+					statement.close();
+				} catch (SQLException ex) {
+					logger.log(Level.SEVERE, "Error closing statement after executing  findFilesWhere", ex);
+				}
+			}
+			dbReadUnlock();
+		}
+		return ret;
 	}
 
 	/**
